@@ -199,57 +199,101 @@
       const downloadPDF = () => {
         const element = document.getElementById('pdf-content');
         const opt = {
-          margin: 10,
+          margin: [8, 8, 8, 8],
           filename: `Granite_Export_Margin_${new Date().toISOString().split('T')[0]}.pdf`,
-          image: { type: 'jpeg', quality: 0.98 },
-          html2canvas: { scale: 2 },
-          jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+          image: { type: 'jpeg', quality: 0.95 },
+          html2canvas: { scale: 1.5, useCORS: true },
+          jsPDF: { unit: 'mm', format: 'legal', orientation: 'portrait' },
+          pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
         };
         html2pdf().set(opt).from(element).save();
       };
 
       const downloadExcel = () => {
-        let csv = 'Granite Export Margin Calculator\n\n';
-        csv += `Date,${new Date().toLocaleDateString()}\n`;
-        csv += `Destination,${destination}\n`;
-        csv += `Granite Colour,${graniteColour || 'Not specified'}\n`;
-        csv += `Granite Size,${graniteSize || 'Not specified'}\n`;
-        csv += `Dispatch Port,${dispatchPort || 'Not specified'}\n`;
-        csv += `Container Load (SQFT),${containerSqft}\n`;
-        csv += `Exchange Rate (USD to INR),${effectiveRate.toFixed(2)}\n\n`;
+        // Create HTML table format for better Excel rendering
+        let html = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">';
+        html += '<head><meta charset="utf-8"><style>';
+        html += 'table {border-collapse: collapse; width: 100%; font-family: Arial;}';
+        html += 'th, td {border: 1px solid #ddd; padding: 8px; text-align: left;}';
+        html += 'th {background-color: #4472C4; color: white; font-weight: bold;}';
+        html += '.section-header {background-color: #E7E6E6; font-weight: bold; font-size: 14px;}';
+        html += '.highlight {background-color: #FFF2CC;}';
+        html += '.total {background-color: #D9E1F2; font-weight: bold;}';
+        html += '</style></head><body>';
         
-        csv += 'COSTS PER SQFT\n';
-        csv += `Raw Material,₹${costsPerSqft.rawMaterial || 0}\n`;
-        csv += `Commission,₹${costsPerSqft.commission || 0}\n`;
-        csv += `Bill & Other Duties,₹${costsPerSqft.billDuties || 0}\n`;
-        csv += `Packing Charges,₹${costsPerSqft.packing || 0}\n`;
-        csv += `Total Per SQFT,₹${totalCostsPerSqft.toFixed(2)}\n\n`;
+        html += '<h1 style="color: #2E5090;">Granite Export Margin Calculator</h1>';
+        html += `<p><strong>Date:</strong> ${new Date().toLocaleDateString()}</p>`;
         
-        csv += 'COSTS PER CONTAINER\n';
-        csv += `GST,₹${costsPerContainer.gst || 0}\n`;
-        csv += `Export Clearance,₹${costsPerContainer.exportClearance || 0}\n`;
-        csv += `Freight,₹${costsPerContainer.freight || 0}\n`;
-        csv += `Transport,₹${costsPerContainer.transport || 0}\n`;
-        csv += `Miscellaneous,₹${costsPerContainer.miscellaneous || 0}\n`;
-        csv += `Total Per Container,₹${totalCostsFromContainer.toFixed(2)}\n\n`;
+        // Product Details
+        html += '<table>';
+        html += '<tr><th colspan="2" class="section-header">PRODUCT & SHIPMENT DETAILS</th></tr>';
+        html += `<tr><td><strong>Granite Colour</strong></td><td>${graniteColour || 'Not specified'}</td></tr>`;
+        html += `<tr><td><strong>Granite Size/Type</strong></td><td>${graniteSize || 'Not specified'}</td></tr>`;
+        html += `<tr><td><strong>Dispatch Port</strong></td><td>${dispatchPort || 'Not specified'}</td></tr>`;
+        html += `<tr><td><strong>Destination</strong></td><td>${destination}</td></tr>`;
+        html += `<tr><td><strong>Container Load</strong></td><td>${containerSqft} SQFT (${((parseFloat(containerSqft) || 0) / SQM_TO_SQFT).toFixed(2)} SQM)</td></tr>`;
+        html += `<tr><td><strong>Exchange Rate (USD to INR)</strong></td><td>₹ ${effectiveRate.toFixed(2)}</td></tr>`;
+        html += '</table><br>';
         
-        csv += 'REVENUE\n';
-        csv += `Selling Price (USD/SQM),$${revenue.sellingPriceUSD_SQM || 0}\n`;
-        csv += `Selling Price (INR/SQFT),₹${sellingPriceINR_SQFT.toFixed(2)}\n`;
-        csv += `Duty Drawback,₹${revenue.dutyDrawback || 0}\n`;
-        csv += `Other Allowances,₹${revenue.otherAllowances || 0}\n\n`;
+        // Costs Per SQFT
+        html += '<table>';
+        html += '<tr><th colspan="2" class="section-header">COSTS PER SQFT</th></tr>';
+        html += `<tr><td>Raw Material</td><td>₹ ${costsPerSqft.rawMaterial || 0}</td></tr>`;
+        html += `<tr><td>Commission</td><td>₹ ${costsPerSqft.commission || 0}</td></tr>`;
+        html += `<tr><td>Bill & Other Duties</td><td>₹ ${costsPerSqft.billDuties || 0}</td></tr>`;
+        html += `<tr><td>Packing Charges</td><td>₹ ${costsPerSqft.packing || 0}</td></tr>`;
+        html += `<tr class="total"><td><strong>Total Per SQFT</strong></td><td><strong>₹ ${totalCostsPerSqft.toFixed(2)}</strong></td></tr>`;
+        html += `<tr class="highlight"><td><strong>Total for Container</strong></td><td><strong>₹ ${totalCostsFromSqft.toFixed(2)}</strong></td></tr>`;
+        html += '</table><br>';
         
-        csv += 'SUMMARY\n';
-        csv += `Total Costs,₹${totalCosts.toFixed(2)}\n`;
-        csv += `Total Revenue,₹${totalRevenue.toFixed(2)}\n`;
-        csv += `Net Margin,₹${netMargin.toFixed(2)}\n`;
-        csv += `Margin Percentage,${marginPercentage.toFixed(2)}%\n`;
+        // Costs Per Container
+        html += '<table>';
+        html += '<tr><th colspan="2" class="section-header">COSTS PER CONTAINER</th></tr>';
+        html += `<tr><td>GST</td><td>₹ ${costsPerContainer.gst || 0}</td></tr>`;
+        html += `<tr><td>Export Clearance</td><td>₹ ${costsPerContainer.exportClearance || 0}</td></tr>`;
+        html += `<tr><td>Freight</td><td>₹ ${costsPerContainer.freight || 0}</td></tr>`;
+        html += `<tr><td>Transport (Factory to Port)</td><td>₹ ${costsPerContainer.transport || 0}</td></tr>`;
+        html += `<tr><td>Miscellaneous</td><td>₹ ${costsPerContainer.miscellaneous || 0}</td></tr>`;
+        html += `<tr class="total"><td><strong>Total Per Container</strong></td><td><strong>₹ ${totalCostsFromContainer.toFixed(2)}</strong></td></tr>`;
+        html += `<tr class="highlight"><td><strong>Per SQFT</strong></td><td><strong>₹ ${(containerSqftNum > 0 ? totalCostsFromContainer / containerSqftNum : 0).toFixed(2)}</strong></td></tr>`;
+        html += '</table><br>';
+        
+        // Revenue
+        html += '<table>';
+        html += '<tr><th colspan="2" class="section-header">REVENUE</th></tr>';
+        html += `<tr><td>Selling Price Per SQM</td><td>$ ${revenue.sellingPriceUSD_SQM || 0}</td></tr>`;
+        html += `<tr><td>Selling Price Per SQFT (USD)</td><td>$ ${sellingPriceUSD_SQFT.toFixed(2)}</td></tr>`;
+        html += `<tr><td>Selling Price Per SQFT (INR)</td><td>₹ ${sellingPriceINR_SQFT.toFixed(2)}</td></tr>`;
+        html += `<tr><td>Selling Price Per SQM (INR)</td><td>₹ ${sellingPriceINR_SQM.toFixed(2)}</td></tr>`;
+        html += `<tr><td>Sales Revenue (Container)</td><td>₹ ${totalRevenueFromSales.toFixed(2)}</td></tr>`;
+        html += `<tr><td>Duty Drawback</td><td>₹ ${revenue.dutyDrawback || 0}</td></tr>`;
+        html += `<tr><td>Other Allowances</td><td>₹ ${revenue.otherAllowances || 0}</td></tr>`;
+        html += `<tr class="total"><td><strong>Total Revenue</strong></td><td><strong>₹ ${totalRevenue.toFixed(2)}</strong></td></tr>`;
+        html += '</table><br>';
+        
+        // Summary
+        html += '<table>';
+        html += '<tr><th colspan="2" class="section-header">MARGIN ANALYSIS</th></tr>';
+        html += `<tr><td><strong>Revenue Per SQFT</strong></td><td>₹ ${revenuePerSqft.toFixed(2)}</td></tr>`;
+        html += `<tr><td><strong>Cost Per SQFT</strong></td><td>₹ ${costPerSqftTotal.toFixed(2)}</td></tr>`;
+        html += `<tr><td><strong>Margin Per SQFT</strong></td><td>₹ ${marginPerSqft.toFixed(2)}</td></tr>`;
+        html += '</table><br>';
+        
+        html += '<table>';
+        html += '<tr><th colspan="2" class="section-header">FINAL SUMMARY (PER CONTAINER)</th></tr>';
+        html += `<tr><td><strong>Total Costs</strong></td><td style="color: red;">₹ ${totalCosts.toFixed(2)}</td></tr>`;
+        html += `<tr><td><strong>Total Revenue</strong></td><td style="color: green;">₹ ${totalRevenue.toFixed(2)}</td></tr>`;
+        html += `<tr class="highlight"><td><strong>Net Margin (₹)</strong></td><td style="font-size: 16px; color: ${netMargin >= 0 ? 'green' : 'red'};"><strong>₹ ${netMargin.toFixed(2)}</strong></td></tr>`;
+        html += `<tr class="highlight"><td><strong>Margin Percentage (%)</strong></td><td style="font-size: 16px; color: ${marginPercentage >= 0 ? 'green' : 'red'};"><strong>${marginPercentage.toFixed(2)}%</strong></td></tr>`;
+        html += '</table>';
+        
+        html += '</body></html>';
 
-        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const blob = new Blob([html], { type: 'application/vnd.ms-excel' });
         const link = document.createElement('a');
         const url = URL.createObjectURL(blob);
         link.setAttribute('href', url);
-        link.setAttribute('download', `Granite_Export_Margin_${new Date().toISOString().split('T')[0]}.csv`);
+        link.setAttribute('download', `Granite_Export_Margin_${new Date().toISOString().split('T')[0]}.xls`);
         link.style.visibility = 'hidden';
         document.body.appendChild(link);
         link.click();
