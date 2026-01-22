@@ -8,6 +8,7 @@
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 </head>
 <body>
   <div id="root"></div>
@@ -15,7 +16,6 @@
   <script type="text/babel">
     const { useState, useEffect } = React;
 
-    // Lucide React Icons (inline SVG components)
     const DollarSign = () => (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <line x1="12" y1="1" x2="12" y2="23"></line>
@@ -62,6 +62,14 @@
       </svg>
     );
 
+    const Download = ({ className }) => (
+      <svg className={className} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+        <polyline points="7 10 12 15 17 10"></polyline>
+        <line x1="12" y1="15" x2="12" y2="3"></line>
+      </svg>
+    );
+
     const InputField = ({ label, value, onChange, prefix = '₹', suffix = '' }) => {
       return (
         <div className="mb-3">
@@ -85,16 +93,33 @@
       const SQM_TO_SQFT = 10.764;
 
       const countries = [
-        'Vietnam',
-        'UAE',
-        'Oman',
-        'Poland',
-        'Sri Lanka',
-        'Morocco',
-        'Mexico',
-        'West Indies',
-        'Saudi Arabia',
-        'Kuwait'
+        'Vietnam', 'UAE', 'Oman', 'Poland', 'Sri Lanka', 
+        'Morocco', 'Mexico', 'West Indies', 'Saudi Arabia', 'Kuwait'
+      ];
+
+      const graniteColours = [
+        'Absolute Black Kanigiri',
+        'Absolute Black Kammam',
+        'Absolute Black Tamilnadu',
+        'Black Galaxy',
+        'Tan Brown',
+        'Steel Gray',
+        'Lavender Blue',
+        'Viscon White',
+        'Colonial White',
+        'SK Blue',
+        'River White',
+        'Green Marble',
+        'Kuppam Green',
+        'Moon White'
+      ];
+
+      const dispatchPorts = [
+        'Vizag',
+        'Chennai',
+        'Tuticorin',
+        'Mumbai',
+        'Mundra'
       ];
 
       const [usdRate, setUsdRate] = useState(83.50);
@@ -103,6 +128,9 @@
       const [loading, setLoading] = useState(false);
       const [containerSqft, setContainerSqft] = useState('4600');
       const [destination, setDestination] = useState('Vietnam');
+      const [graniteColour, setGraniteColour] = useState('');
+      const [graniteSize, setGraniteSize] = useState('');
+      const [dispatchPort, setDispatchPort] = useState('');
 
       const [costsPerSqft, setCostsPerSqft] = useState({
         rawMaterial: '',
@@ -123,13 +151,6 @@
         sellingPriceUSD_SQM: '',
         dutyDrawback: '',
         otherAllowances: ''
-      });
-
-      const [slabAllowance, setSlabAllowance] = useState({
-        numberOfSlabs: '',
-        allowancePerSlabCM: '3',
-        slabLengthCM: '',
-        slabWidthCM: ''
       });
 
       const fetchLiveRate = async () => {
@@ -156,28 +177,9 @@
 
       const effectiveRate = useCustomRate ? (parseFloat(customRate) || 0) : usdRate;
 
-      const calculateSlabAllowanceValue = () => {
-        const numSlabs = parseFloat(slabAllowance.numberOfSlabs) || 0;
-        const allowanceCM = parseFloat(slabAllowance.allowancePerSlabCM) || 0;
-        const lengthCM = parseFloat(slabAllowance.slabLengthCM) || 0;
-        const widthCM = parseFloat(slabAllowance.slabWidthCM) || 0;
-
-        if (numSlabs === 0 || allowanceCM === 0 || lengthCM === 0 || widthCM === 0) {
-          return 0;
-        }
-
-        const allowanceAreaPerSlabCM2 = allowanceCM * widthCM;
-        const totalAllowanceAreaCM2 = allowanceAreaPerSlabCM2 * numSlabs;
-        const totalAllowanceSQFT = totalAllowanceAreaCM2 / 929.03;
-        
-        return totalAllowanceSQFT;
-      };
-
-      const allowanceSQFT = calculateSlabAllowanceValue();
       const sellingPriceUSD_SQFT = (parseFloat(revenue.sellingPriceUSD_SQM) || 0) / SQM_TO_SQFT;
       const sellingPriceINR_SQFT = sellingPriceUSD_SQFT * effectiveRate;
       const sellingPriceINR_SQM = (parseFloat(revenue.sellingPriceUSD_SQM) || 0) * effectiveRate;
-      const allowanceValueINR = allowanceSQFT * sellingPriceINR_SQFT;
 
       const containerSqftNum = parseFloat(containerSqft) || 0;
       const totalCostsPerSqft = Object.values(costsPerSqft).reduce((sum, val) => sum + (parseFloat(val) || 0), 0);
@@ -187,335 +189,433 @@
       const costPerSqftTotal = containerSqftNum > 0 ? totalCosts / containerSqftNum : 0;
 
       const totalRevenueFromSales = sellingPriceINR_SQFT * containerSqftNum;
-      const totalRevenue = totalRevenueFromSales + (parseFloat(revenue.dutyDrawback) || 0) + (parseFloat(revenue.otherAllowances) || 0) + allowanceValueINR;
+      const totalRevenue = totalRevenueFromSales + (parseFloat(revenue.dutyDrawback) || 0) + (parseFloat(revenue.otherAllowances) || 0);
       const revenuePerSqft = containerSqftNum > 0 ? totalRevenue / containerSqftNum : 0;
 
       const netMargin = totalRevenue - totalCosts;
       const marginPerSqft = revenuePerSqft - costPerSqftTotal;
       const marginPercentage = totalRevenue > 0 ? (netMargin / totalRevenue) * 100 : 0;
 
+      const downloadPDF = () => {
+        const element = document.getElementById('pdf-content');
+        const opt = {
+          margin: 10,
+          filename: `Granite_Export_Margin_${new Date().toISOString().split('T')[0]}.pdf`,
+          image: { type: 'jpeg', quality: 0.98 },
+          html2canvas: { scale: 2 },
+          jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        };
+        html2pdf().set(opt).from(element).save();
+      };
+
+      const downloadExcel = () => {
+        let csv = 'Granite Export Margin Calculator\n\n';
+        csv += `Date,${new Date().toLocaleDateString()}\n`;
+        csv += `Destination,${destination}\n`;
+        csv += `Granite Colour,${graniteColour || 'Not specified'}\n`;
+        csv += `Granite Size,${graniteSize || 'Not specified'}\n`;
+        csv += `Dispatch Port,${dispatchPort || 'Not specified'}\n`;
+        csv += `Container Load (SQFT),${containerSqft}\n`;
+        csv += `Exchange Rate (USD to INR),${effectiveRate.toFixed(2)}\n\n`;
+        
+        csv += 'COSTS PER SQFT\n';
+        csv += `Raw Material,₹${costsPerSqft.rawMaterial || 0}\n`;
+        csv += `Commission,₹${costsPerSqft.commission || 0}\n`;
+        csv += `Bill & Other Duties,₹${costsPerSqft.billDuties || 0}\n`;
+        csv += `Packing Charges,₹${costsPerSqft.packing || 0}\n`;
+        csv += `Total Per SQFT,₹${totalCostsPerSqft.toFixed(2)}\n\n`;
+        
+        csv += 'COSTS PER CONTAINER\n';
+        csv += `GST,₹${costsPerContainer.gst || 0}\n`;
+        csv += `Export Clearance,₹${costsPerContainer.exportClearance || 0}\n`;
+        csv += `Freight,₹${costsPerContainer.freight || 0}\n`;
+        csv += `Transport,₹${costsPerContainer.transport || 0}\n`;
+        csv += `Miscellaneous,₹${costsPerContainer.miscellaneous || 0}\n`;
+        csv += `Total Per Container,₹${totalCostsFromContainer.toFixed(2)}\n\n`;
+        
+        csv += 'REVENUE\n';
+        csv += `Selling Price (USD/SQM),$${revenue.sellingPriceUSD_SQM || 0}\n`;
+        csv += `Selling Price (INR/SQFT),₹${sellingPriceINR_SQFT.toFixed(2)}\n`;
+        csv += `Duty Drawback,₹${revenue.dutyDrawback || 0}\n`;
+        csv += `Other Allowances,₹${revenue.otherAllowances || 0}\n\n`;
+        
+        csv += 'SUMMARY\n';
+        csv += `Total Costs,₹${totalCosts.toFixed(2)}\n`;
+        csv += `Total Revenue,₹${totalRevenue.toFixed(2)}\n`;
+        csv += `Net Margin,₹${netMargin.toFixed(2)}\n`;
+        csv += `Margin Percentage,${marginPercentage.toFixed(2)}%\n`;
+
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        link.setAttribute('href', url);
+        link.setAttribute('download', `Granite_Export_Margin_${new Date().toISOString().split('T')[0]}.csv`);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      };
+
       return (
         <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-6">
           <div className="max-w-7xl mx-auto">
             <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
-              <h1 className="text-3xl font-bold text-gray-800 mb-2">Granite Export Margin Calculator</h1>
-              <p className="text-gray-600">Calculate export margins per SQFT and per container</p>
-            </div>
-
-            <div className="grid lg:grid-cols-4 gap-6 mb-6">
-              <div className="lg:col-span-3 space-y-6">
-                <div className="bg-white rounded-lg shadow-lg p-6">
-                  <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center">
-                    <Globe className="mr-2 text-blue-600" />
-                    Destination & Configuration
-                  </h2>
-                  <div className="grid md:grid-cols-4 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Destination Country
-                      </label>
-                      <select
-                        value={destination}
-                        onChange={(e) => setDestination(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      >
-                        {countries.map(country => (
-                          <option key={country} value={country}>{country}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Live Rate (₹2 below Google)
-                      </label>
-                      <div className="flex items-center gap-2">
-                        <div className="flex-1 px-3 py-2 bg-gray-100 rounded-md font-semibold text-sm">
-                          ₹ {usdRate.toFixed(2)}
-                        </div>
-                        <button
-                          onClick={fetchLiveRate}
-                          disabled={loading}
-                          className="p-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:bg-gray-400"
-                        >
-                          <RefreshCw className={loading ? 'animate-spin' : ''} />
-                        </button>
-                      </div>
-                    </div>
-                    <div>
-                      <label className="flex items-center text-sm font-medium text-gray-700 mb-2">
-                        <input
-                          type="checkbox"
-                          checked={useCustomRate}
-                          onChange={(e) => setUseCustomRate(e.target.checked)}
-                          className="mr-2"
-                        />
-                        Custom Rate
-                      </label>
-                      <input
-                        type="text"
-                        inputMode="decimal"
-                        value={customRate}
-                        onChange={(e) => setCustomRate(e.target.value)}
-                        disabled={!useCustomRate}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        <Package className="inline w-4 h-4 mr-1" />
-                        Container Load (SQFT)
-                      </label>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        value={containerSqft}
-                        onChange={(e) => setContainerSqft(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
-                      />
-                    </div>
-                  </div>
-                  <div className="mt-3 text-sm text-gray-600">
-                    Effective Rate: <span className="font-bold text-blue-600">₹ {effectiveRate.toFixed(2)}</span>
-                    <span className="mx-2">•</span>
-                    Container SQM: <span className="font-bold text-purple-600">{((parseFloat(containerSqft) || 0) / SQM_TO_SQFT).toFixed(2)}</span>
-                  </div>
+              <div className="flex justify-between items-center">
+                <div>
+                  <h1 className="text-3xl font-bold text-gray-800 mb-2">Granite Export Margin Calculator</h1>
+                  <p className="text-gray-600">Calculate export margins per SQFT and per container</p>
                 </div>
-
-                <div className="grid md:grid-cols-2 gap-6">
-                  <div className="bg-white rounded-lg shadow-lg p-6">
-                    <h3 className="text-lg font-semibold text-red-600 mb-4">Costs Per SQFT</h3>
-                    <InputField 
-                      label="Raw Material Cost" 
-                      value={costsPerSqft.rawMaterial} 
-                      onChange={(e) => setCostsPerSqft(prev => ({ ...prev, rawMaterial: e.target.value }))} 
-                    />
-                    <InputField 
-                      label="Commission" 
-                      value={costsPerSqft.commission} 
-                      onChange={(e) => setCostsPerSqft(prev => ({ ...prev, commission: e.target.value }))} 
-                    />
-                    <InputField 
-                      label="Bill & Other Duties" 
-                      value={costsPerSqft.billDuties} 
-                      onChange={(e) => setCostsPerSqft(prev => ({ ...prev, billDuties: e.target.value }))} 
-                    />
-                    <InputField 
-                      label="Packing Charges" 
-                      value={costsPerSqft.packing} 
-                      onChange={(e) => setCostsPerSqft(prev => ({ ...prev, packing: e.target.value }))} 
-                    />
-                    <div className="mt-4 p-3 bg-red-50 rounded-md border-l-4 border-red-500">
-                      <div className="text-sm text-gray-600">Total Cost Per SQFT</div>
-                      <div className="text-xl font-bold text-red-600">₹ {totalCostsPerSqft.toFixed(2)}</div>
-                      <div className="text-xs text-gray-500 mt-1">
-                        Total for container: ₹ {totalCostsFromSqft.toFixed(2)}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="bg-white rounded-lg shadow-lg p-6">
-                    <h3 className="text-lg font-semibold text-red-600 mb-4">Costs Per Container</h3>
-                    <InputField 
-                      label="GST" 
-                      value={costsPerContainer.gst} 
-                      onChange={(e) => setCostsPerContainer(prev => ({ ...prev, gst: e.target.value }))} 
-                    />
-                    <InputField 
-                      label="Export Clearance Cost" 
-                      value={costsPerContainer.exportClearance} 
-                      onChange={(e) => setCostsPerContainer(prev => ({ ...prev, exportClearance: e.target.value }))} 
-                    />
-                    <InputField 
-                      label="Freight" 
-                      value={costsPerContainer.freight} 
-                      onChange={(e) => setCostsPerContainer(prev => ({ ...prev, freight: e.target.value }))} 
-                    />
-                    <InputField 
-                      label="Transport (Factory to Port)" 
-                      value={costsPerContainer.transport} 
-                      onChange={(e) => setCostsPerContainer(prev => ({ ...prev, transport: e.target.value }))} 
-                    />
-                    <InputField 
-                      label="Miscellaneous Costs" 
-                      value={costsPerContainer.miscellaneous} 
-                      onChange={(e) => setCostsPerContainer(prev => ({ ...prev, miscellaneous: e.target.value }))} 
-                    />
-                    <div className="mt-4 p-3 bg-red-50 rounded-md border-l-4 border-red-500">
-                      <div className="text-sm text-gray-600">Total Per Container</div>
-                      <div className="text-xl font-bold text-red-600">₹ {totalCostsFromContainer.toFixed(2)}</div>
-                      <div className="text-xs text-gray-500 mt-1">
-                        Per SQFT: ₹ {(containerSqftNum > 0 ? totalCostsFromContainer / containerSqftNum : 0).toFixed(2)}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-white rounded-lg shadow-lg p-6">
-                  <h3 className="text-lg font-semibold text-green-600 mb-4">Revenue</h3>
-                  <div className="grid md:grid-cols-2 gap-6">
-                    <div>
-                      <InputField 
-                        label="Selling Price Per SQM (USD)" 
-                        value={revenue.sellingPriceUSD_SQM} 
-                        onChange={(e) => setRevenue(prev => ({ ...prev, sellingPriceUSD_SQM: e.target.value }))}
-                        prefix="$"
-                      />
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="p-3 bg-blue-50 rounded-md">
-                          <div className="text-xs text-gray-600">Price per SQFT (USD)</div>
-                          <div className="text-lg font-bold text-blue-600">$ {sellingPriceUSD_SQFT.toFixed(2)}</div>
-                        </div>
-                        <div className="p-3 bg-blue-50 rounded-md">
-                          <div className="text-xs text-gray-600">Price per SQFT (INR)</div>
-                          <div className="text-lg font-bold text-blue-600">₹ {sellingPriceINR_SQFT.toFixed(2)}</div>
-                        </div>
-                      </div>
-                      <div className="mt-2 p-3 bg-green-50 rounded-md border-l-4 border-green-500">
-                        <div className="text-xs text-gray-600">Price per SQM (INR)</div>
-                        <div className="text-xl font-bold text-green-600">₹ {sellingPriceINR_SQM.toFixed(2)}</div>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <InputField 
-                        label="Duty Drawback (Container)" 
-                        value={revenue.dutyDrawback} 
-                        onChange={(e) => setRevenue(prev => ({ ...prev, dutyDrawback: e.target.value }))} 
-                      />
-                      <InputField 
-                        label="Other Allowances (Container)" 
-                        value={revenue.otherAllowances} 
-                        onChange={(e) => setRevenue(prev => ({ ...prev, otherAllowances: e.target.value }))} 
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-white rounded-lg shadow-lg p-6">
-                  <h3 className="text-lg font-semibold text-purple-600 mb-4">Slab Allowance Calculator</h3>
-                  <div className="grid md:grid-cols-4 gap-4">
-                    <InputField 
-                      label="Number of Slabs" 
-                      value={slabAllowance.numberOfSlabs} 
-                      onChange={(e) => setSlabAllowance(prev => ({ ...prev, numberOfSlabs: e.target.value }))}
-                      prefix="#"
-                    />
-                    <InputField 
-                      label="Allowance per Slab" 
-                      value={slabAllowance.allowancePerSlabCM} 
-                      onChange={(e) => setSlabAllowance(prev => ({ ...prev, allowancePerSlabCM: e.target.value }))}
-                      prefix=""
-                      suffix="cm"
-                    />
-                    <InputField 
-                      label="Slab Length" 
-                      value={slabAllowance.slabLengthCM} 
-                      onChange={(e) => setSlabAllowance(prev => ({ ...prev, slabLengthCM: e.target.value }))}
-                      prefix=""
-                      suffix="cm"
-                    />
-                    <InputField 
-                      label="Slab Width" 
-                      value={slabAllowance.slabWidthCM} 
-                      onChange={(e) => setSlabAllowance(prev => ({ ...prev, slabWidthCM: e.target.value }))}
-                      prefix=""
-                      suffix="cm"
-                    />
-                  </div>
-                  <div className="mt-4 grid grid-cols-2 gap-4">
-                    <div className="p-3 bg-purple-50 rounded-md border-l-4 border-purple-500">
-                      <div className="text-sm text-gray-600">Total Allowance Area</div>
-                      <div className="text-xl font-bold text-purple-600">{allowanceSQFT.toFixed(2)} SQFT</div>
-                      <div className="text-xs text-gray-500 mt-1">
-                        {(allowanceSQFT / SQM_TO_SQFT).toFixed(2)} SQM
-                      </div>
-                    </div>
-                    <div className="p-3 bg-green-50 rounded-md border-l-4 border-green-500">
-                      <div className="text-sm text-gray-600">Allowance Value (Added to Margin)</div>
-                      <div className="text-xl font-bold text-green-600">₹ {allowanceValueINR.toFixed(2)}</div>
-                      <div className="text-xs text-gray-500 mt-1">
-                        @ ₹{sellingPriceINR_SQFT.toFixed(2)}/SQFT
-                      </div>
-                    </div>
-                  </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={downloadExcel}
+                    className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 flex items-center text-sm"
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    Excel
+                  </button>
+                  <button
+                    onClick={downloadPDF}
+                    className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 flex items-center text-sm"
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    PDF
+                  </button>
                 </div>
               </div>
+            </div>
 
-              <div className="space-y-6">
-                <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg shadow-lg p-6 text-white">
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="text-lg font-semibold">Margin %</h3>
-                    {marginPercentage >= 0 ? <TrendingUp className="w-6 h-6" /> : <TrendingDown className="w-6 h-6" />}
-                  </div>
-                  <div className="text-4xl font-bold mb-2">{marginPercentage.toFixed(2)}%</div>
-                  <div className="text-sm opacity-90">
-                    {marginPercentage >= 20 ? 'Excellent margin' : marginPercentage >= 10 ? 'Good margin' : marginPercentage >= 0 ? 'Low margin' : 'Loss'}
-                  </div>
-                </div>
+            <div id="pdf-content">
+              <div className="grid lg:grid-cols-4 gap-6 mb-6">
+                <div className="lg:col-span-3 space-y-6">
+                  <div className="bg-white rounded-lg shadow-lg p-6">
+                    <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center">
+                      <Globe className="mr-2 text-blue-600" />
+                      Product & Destination Configuration
+                    </h2>
+                    <div className="grid md:grid-cols-3 gap-4 mb-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Granite Colour
+                        </label>
+                        <select
+                          value={graniteColour}
+                          onChange={(e) => setGraniteColour(e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                        >
+                          <option value="">Select Colour</option>
+                          {graniteColours.map(colour => (
+                            <option key={colour} value={colour}>{colour}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Granite Size/Type
+                        </label>
+                        <input
+                          type="text"
+                          value={graniteSize}
+                          onChange={(e) => setGraniteSize(e.target.value)}
+                          placeholder="e.g., 2cm, 3cm, 60x60 tile"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Dispatch Port
+                        </label>
+                        <select
+                          value={dispatchPort}
+                          onChange={(e) => setDispatchPort(e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                        >
+                          <option value="">Select Port</option>
+                          {dispatchPorts.map(port => (
+                            <option key={port} value={port}>{port}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
 
-                <div className="bg-white rounded-lg shadow-lg p-6">
-                  <h3 className="text-lg font-semibold text-gray-800 mb-4">
-                    <Globe className="inline w-5 h-5 mr-2 text-blue-600" />
-                    {destination}
-                  </h3>
-                  <div className="p-4 bg-gradient-to-br from-blue-50 to-purple-50 rounded-lg text-center">
-                    <Package className="w-10 h-10 mx-auto mb-2 text-purple-600" />
-                    <div className="text-2xl font-bold text-purple-600">{containerSqft}</div>
-                    <div className="text-xs text-gray-600">SQFT</div>
-                    <div className="text-lg font-semibold text-blue-600 mt-1">
-                      {((parseFloat(containerSqft) || 0) / SQM_TO_SQFT).toFixed(2)}
+                    <div className="grid md:grid-cols-4 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Destination Country
+                        </label>
+                        <select
+                          value={destination}
+                          onChange={(e) => setDestination(e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                        >
+                          {countries.map(country => (
+                            <option key={country} value={country}>{country}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Live Rate (₹2 below Google)
+                        </label>
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 px-3 py-2 bg-gray-100 rounded-md font-semibold text-sm">
+                            ₹ {usdRate.toFixed(2)}
+                          </div>
+                          <button
+                            onClick={fetchLiveRate}
+                            disabled={loading}
+                            className="p-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:bg-gray-400"
+                          >
+                            <RefreshCw className={loading ? 'animate-spin' : ''} />
+                          </button>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="flex items-center text-sm font-medium text-gray-700 mb-2">
+                          <input
+                            type="checkbox"
+                            checked={useCustomRate}
+                            onChange={(e) => setUseCustomRate(e.target.checked)}
+                            className="mr-2"
+                          />
+                          Custom Rate
+                        </label>
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={customRate}
+                          onChange={(e) => setCustomRate(e.target.value)}
+                          disabled={!useCustomRate}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          <Package className="inline w-4 h-4 mr-1" />
+                          Container Load (SQFT)
+                        </label>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={containerSqft}
+                          onChange={(e) => setContainerSqft(e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
                     </div>
-                    <div className="text-xs text-gray-600">SQM</div>
+                    <div className="mt-3 text-sm text-gray-600">
+                      Effective Rate: <span className="font-bold text-blue-600">₹ {effectiveRate.toFixed(2)}</span>
+                      <span className="mx-2">•</span>
+                      Container SQM: <span className="font-bold text-purple-600">{((parseFloat(containerSqft) || 0) / SQM_TO_SQFT).toFixed(2)}</span>
+                    </div>
                   </div>
-                </div>
 
-                <div className="bg-white rounded-lg shadow-lg p-6">
-                  <h3 className="text-lg font-semibold text-gray-800 mb-4">Per SQFT Analysis</h3>
-                  <div className="space-y-3">
-                    <div className="p-3 bg-green-50 rounded-md">
-                      <div className="text-sm text-gray-600">Revenue/SQFT</div>
-                      <div className="text-xl font-bold text-green-600">₹ {revenuePerSqft.toFixed(2)}</div>
+                  <div className="grid md:grid-cols-2 gap-6">
+                    <div className="bg-white rounded-lg shadow-lg p-6">
+                      <h3 className="text-lg font-semibold text-red-600 mb-4">Costs Per SQFT</h3>
+                      <InputField 
+                        label="Raw Material Cost" 
+                        value={costsPerSqft.rawMaterial} 
+                        onChange={(e) => setCostsPerSqft(prev => ({ ...prev, rawMaterial: e.target.value }))} 
+                      />
+                      <InputField 
+                        label="Commission" 
+                        value={costsPerSqft.commission} 
+                        onChange={(e) => setCostsPerSqft(prev => ({ ...prev, commission: e.target.value }))} 
+                      />
+                      <InputField 
+                        label="Bill & Other Duties" 
+                        value={costsPerSqft.billDuties} 
+                        onChange={(e) => setCostsPerSqft(prev => ({ ...prev, billDuties: e.target.value }))} 
+                      />
+                      <InputField 
+                        label="Packing Charges" 
+                        value={costsPerSqft.packing} 
+                        onChange={(e) => setCostsPerSqft(prev => ({ ...prev, packing: e.target.value }))} 
+                      />
+                      <div className="mt-4 p-3 bg-red-50 rounded-md border-l-4 border-red-500">
+                        <div className="text-sm text-gray-600">Total Cost Per SQFT</div>
+                        <div className="text-xl font-bold text-red-600">₹ {totalCostsPerSqft.toFixed(2)}</div>
+                        <div className="text-xs text-gray-500 mt-1">
+                          Total for container: ₹ {totalCostsFromSqft.toFixed(2)}
+                        </div>
+                      </div>
                     </div>
-                    <div className="p-3 bg-red-50 rounded-md">
-                      <div className="text-sm text-gray-600">Cost/SQFT</div>
-                      <div className="text-xl font-bold text-red-600">₹ {costPerSqftTotal.toFixed(2)}</div>
+
+                    <div className="bg-white rounded-lg shadow-lg p-6">
+                      <h3 className="text-lg font-semibold text-red-600 mb-4">Costs Per Container</h3>
+                      <InputField 
+                        label="GST" 
+                        value={costsPerContainer.gst} 
+                        onChange={(e) => setCostsPerContainer(prev => ({ ...prev, gst: e.target.value }))} 
+                      />
+                      <InputField 
+                        label="Export Clearance Cost" 
+                        value={costsPerContainer.exportClearance} 
+                        onChange={(e) => setCostsPerContainer(prev => ({ ...prev, exportClearance: e.target.value }))} 
+                      />
+                      <InputField 
+                        label="Freight" 
+                        value={costsPerContainer.freight} 
+                        onChange={(e) => setCostsPerContainer(prev => ({ ...prev, freight: e.target.value }))} 
+                      />
+                      <InputField 
+                        label="Transport (Factory to Port)" 
+                        value={costsPerContainer.transport} 
+                        onChange={(e) => setCostsPerContainer(prev => ({ ...prev, transport: e.target.value }))} 
+                      />
+                      <InputField 
+                        label="Miscellaneous Costs" 
+                        value={costsPerContainer.miscellaneous} 
+                        onChange={(e) => setCostsPerContainer(prev => ({ ...prev, miscellaneous: e.target.value }))} 
+                      />
+                      <div className="mt-4 p-3 bg-red-50 rounded-md border-l-4 border-red-500">
+                        <div className="text-sm text-gray-600">Total Per Container</div>
+                        <div className="text-xl font-bold text-red-600">₹ {totalCostsFromContainer.toFixed(2)}</div>
+                        <div className="text-xs text-gray-500 mt-1">
+                          Per SQFT: ₹ {(containerSqftNum > 0 ? totalCostsFromContainer / containerSqftNum : 0).toFixed(2)}
+                        </div>
+                      </div>
                     </div>
-                    <div className="p-3 bg-blue-50 rounded-md">
-                      <div className="text-sm text-gray-600">Margin/SQFT</div>
-                      <div className={`text-xl font-bold ${marginPerSqft >= 0 ? 'text-blue-600' : 'text-red-600'}`}>
-                        ₹ {marginPerSqft.toFixed(2)}
+                  </div>
+
+                  <div className="bg-white rounded-lg shadow-lg p-6">
+                    <h3 className="text-lg font-semibold text-green-600 mb-4">Revenue</h3>
+                    <div className="grid md:grid-cols-2 gap-6">
+                      <div>
+                        <InputField 
+                          label="Selling Price Per SQM (USD)" 
+                          value={revenue.sellingPriceUSD_SQM} 
+                          onChange={(e) => setRevenue(prev => ({ ...prev, sellingPriceUSD_SQM: e.target.value }))}
+                          prefix="$"
+                        />
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="p-3 bg-blue-50 rounded-md">
+                            <div className="text-xs text-gray-600">Price per SQFT (USD)</div>
+                            <div className="text-lg font-bold text-blue-600">$ {sellingPriceUSD_SQFT.toFixed(2)}</div>
+                          </div>
+                          <div className="p-3 bg-blue-50 rounded-md">
+                            <div className="text-xs text-gray-600">Price per SQFT (INR)</div>
+                            <div className="text-lg font-bold text-blue-600">₹ {sellingPriceINR_SQFT.toFixed(2)}</div>
+                          </div>
+                        </div>
+                        <div className="mt-2 p-3 bg-green-50 rounded-md border-l-4 border-green-500">
+                          <div className="text-xs text-gray-600">Price per SQM (INR)</div>
+                          <div className="text-xl font-bold text-green-600">₹ {sellingPriceINR_SQM.toFixed(2)}</div>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <InputField 
+                          label="Duty Drawback (Container)" 
+                          value={revenue.dutyDrawback} 
+                          onChange={(e) => setRevenue(prev => ({ ...prev, dutyDrawback: e.target.value }))} 
+                        />
+                        <InputField 
+                          label="Other Allowances (Container)" 
+                          value={revenue.otherAllowances} 
+                          onChange={(e) => setRevenue(prev => ({ ...prev, otherAllowances: e.target.value }))} 
+                        />
                       </div>
                     </div>
                   </div>
                 </div>
 
-                <div className="bg-white rounded-lg shadow-lg p-6">
-                  <h3 className="text-lg font-semibold text-gray-800 mb-4">Per Container Summary</h3>
-                  <div className="space-y-3">
-                    <div className="flex justify-between items-center pb-2 border-b">
-                      <span className="text-sm text-gray-600">Total Costs</span>
-                      <span className="font-semibold text-red-600">₹ {totalCosts.toFixed(2)}</span>
+                <div className="space-y-6">
+                  <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg shadow-lg p-6 text-white">
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-lg font-semibold">Margin %</h3>
+                      {marginPercentage >= 0 ? <TrendingUp className="w-6 h-6" /> : <TrendingDown className="w-6 h-6" />}
                     </div>
-                    <div className="flex justify-between items-center pb-2 border-b">
-                      <span className="text-sm text-gray-600">Sales Revenue</span>
-                      <span className="font-semibold text-green-600">₹ {totalRevenueFromSales.toFixed(2)}</span>
+                    <div className="text-4xl font-bold mb-2">{marginPercentage.toFixed(2)}%</div>
+                    <div className="text-sm opacity-90">
+                      {marginPercentage >= 20 ? 'Excellent margin' : marginPercentage >= 10 ? 'Good margin' : marginPercentage >= 0 ? 'Low margin' : 'Loss'}
                     </div>
-                    <div className="flex justify-between items-center pb-2 border-b">
-                      <span className="text-sm text-gray-600">Slab Allowance</span>
-                      <span className="font-semibold text-purple-600">₹ {allowanceValueINR.toFixed(2)}</span>
+                  </div>
+
+                  <div className="bg-white rounded-lg shadow-lg p-6">
+                    <h3 className="text-lg font-semibold text-gray-800 mb-4">
+                      <Globe className="inline w-5 h-5 mr-2 text-blue-600" />
+                      Shipment Details
+                    </h3>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Destination:</span>
+                        <span className="font-semibold">{destination}</span>
+                      </div>
+                      {graniteColour && (
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Colour:</span>
+                          <span className="font-semibold">{graniteColour}</span>
+                        </div>
+                      )}
+                      {graniteSize && (
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Size:</span>
+                          <span className="font-semibold">{graniteSize}</span>
+                        </div>
+                      )}
+                      {dispatchPort && (
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Port:</span>
+                          <span className="font-semibold">{dispatchPort}</span>
+                        </div>
+                      )}
                     </div>
-                    <div className="flex justify-between items-center pb-2 border-b">
-                      <span className="text-sm text-gray-600">Drawback & Allowances</span>
-                      <span className="font-semibold text-green-600">₹ {((parseFloat(revenue.dutyDrawback) || 0) + (parseFloat(revenue.otherAllowances) || 0)).toFixed(2)}</span>
+                    <div className="mt-4 p-4 bg-gradient-to-br from-blue-50 to-purple-50 rounded-lg text-center">
+                      <Package className="w-10 h-10 mx-auto mb-2 text-purple-600" />
+                      <div className="text-2xl font-bold text-purple-600">{containerSqft}</div>
+                      <div className="text-xs text-gray-600">SQFT</div>
+                      <div className="text-lg font-semibold text-blue-600 mt-1">
+                        {((parseFloat(containerSqft) || 0) / SQM_TO_SQFT).toFixed(2)}
+                      </div>
+                      <div className="text-xs text-gray-600">SQM</div>
                     </div>
-                    <div className="flex justify-between items-center pb-2 border-b">
-                      <span className="text-sm text-gray-600">Total Revenue</span>
-                      <span className="font-semibold text-green-600">₹ {totalRevenue.toFixed(2)}</span>
+                  </div>
+
+                  <div className="bg-white rounded-lg shadow-lg p-6">
+                    <h3 className="text-lg font-semibold text-gray-800 mb-4">Per SQFT Analysis</h3>
+                    <div className="space-y-3">
+                      <div className="p-3 bg-green-50 rounded-md">
+                        <div className="text-sm text-gray-600">Revenue/SQFT</div>
+                        <div className="text-xl font-bold text-green-600">₹ {revenuePerSqft.toFixed(2)}</div>
+                      </div>
+                      <div className="p-3 bg-red-50 rounded-md">
+                        <div className="text-sm text-gray-600">Cost/SQFT</div>
+                        <div className="text-xl font-bold text-red-600">₹ {costPerSqftTotal.toFixed(2)}</div>
+                      </div>
+                      <div className="p-3 bg-blue-50 rounded-md">
+                        <div className="text-sm text-gray-600">Margin/SQFT</div>
+                        <div className={`text-xl font-bold ${marginPerSqft >= 0 ? 'text-blue-600' : 'text-red-600'}`}>
+                          ₹ {marginPerSqft.toFixed(2)}
+                        </div>
+                      </div>
                     </div>
-                    <div className="flex justify-between items-center py-3 bg-gray-50 rounded-md px-3">
-                      <span className="font-semibold text-gray-800">Net Margin</span>
-                      <span className={`font-bold text-lg ${netMargin >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        ₹ {netMargin.toFixed(2)}
-                      </span>
+                  </div>
+
+                  <div className="bg-white rounded-lg shadow-lg p-6">
+                    <h3 className="text-lg font-semibold text-gray-800 mb-4">Per Container Summary</h3>
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center pb-2 border-b">
+                        <span className="text-sm text-gray-600">Total Costs</span>
+                        <span className="font-semibold text-red-600">₹ {totalCosts.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between items-center pb-2 border-b">
+                        <span className="text-sm text-gray-600">Sales Revenue</span>
+                        <span className="font-semibold text-green-600">₹ {totalRevenueFromSales.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between items-center pb-2 border-b">
+                        <span className="text-sm text-gray-600">Drawback & Allowances</span>
+                        <span className="font-semibold text-green-600">₹ {((parseFloat(revenue.dutyDrawback) || 0) + (parseFloat(revenue.otherAllowances) || 0)).toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between items-center pb-2 border-b">
+                        <span className="text-sm text-gray-600">Total Revenue</span>
+                        <span className="font-semibold text-green-600">₹ {totalRevenue.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between items-center py-3 bg-gray-50 rounded-md px-3">
+                        <span className="font-semibold text-gray-800">Net Margin</span>
+                        <span className={`font-bold text-lg ${netMargin >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          ₹ {netMargin.toFixed(2)}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>
